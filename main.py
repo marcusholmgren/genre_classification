@@ -1,8 +1,11 @@
 import mlflow
+import logging
 import os
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
+logger = logging.getLogger()
 
 # This automatically reads in the configuration
 @hydra.main(config_name='config')
@@ -20,7 +23,8 @@ def go(config: DictConfig):
         # This was passed on the command line as a comma-separated list of steps
         steps_to_execute = config["main"]["execute_steps"].split(",")
     else:
-        assert isinstance(config["main"]["execute_steps"], list)
+        logger.info("execute_steps: %s, %s", type(config["main"]["execute_steps"]), config["main"]["execute_steps"])
+        assert isinstance(config["main"]["execute_steps"], ListConfig)
         steps_to_execute = config["main"]["execute_steps"]
 
     # Download step
@@ -39,18 +43,43 @@ def go(config: DictConfig):
 
     if "preprocess" in steps_to_execute:
 
-        ## YOUR CODE HERE: call the preprocess step
-        pass
+        _ = mlflow.run(
+            os.path.join(root_path, "preprocess"),
+            "main",
+            parameters={
+                "input_artifact": "raw_data.parquet:latest",
+                "artifact_name": "processed_data.csv",
+                "artifact_type": "preprocessed_data",
+                "artifact_description": "Preprocess of data"
+            }
+        )
 
     if "check_data" in steps_to_execute:
 
-        ## YOUR CODE HERE: call the check_data step
-        pass
+        _ = mlflow.run(
+            os.path.join(root_path, "check_data"),
+            "main",
+            parameters={
+                "reference_artifact": "processed_data.csv:latest",
+                "sample_artifact": "processed_data.csv:latest",
+                "ks_alpha": config["data"]["ks_alpha"]
+            }
+        )
 
     if "segregate" in steps_to_execute:
 
-        ## YOUR CODE HERE: call the segregate step
-        pass
+        _ = mlflow.run(
+            os.path.join(root_path, "segregate"),
+            "main",
+            parameters={
+                "input_artifact": "processed_data.csv:latest",
+                "artifact_root": "genre_data",
+                "artifact_type": "train-test_data",
+                "test_size": config["data"]["test_size"],
+                "random_state": config["main"]["random_seed"],
+                "stratify": config["data"]["stratify"]
+            }
+        )
 
     if "random_forest" in steps_to_execute:
 
@@ -60,13 +89,29 @@ def go(config: DictConfig):
         with open(model_config, "w+") as fp:
             fp.write(OmegaConf.to_yaml(config["random_forest_pipeline"]))
 
-        ## YOUR CODE HERE: call the random_forest step
-        pass
+        _ = mlflow.run(
+            os.path.join(root_path, "random_forest"),
+            "main",
+            parameters={
+                "train_data": "genre_data_train.csv:latest",
+                "model_config": model_config,
+                "export_artifact": "genre_algo",
+                "random_seed": config["random_forest_pipeline"]["random_forest"]["random_state"],
+                "val_size": config["data"]["val_size"],
+                "stratify": config["data"]["stratify"]
+            }
+        )
 
     if "evaluate" in steps_to_execute:
 
-        ## YOUR CODE HERE: call the evaluate step
-        pass
+        _ = mlflow.run(
+            os.path.join(root_path, "evaluate"),
+            "main",
+            parameters={
+                "model_export": "genre_algo:latest",
+                "test_data": "genre_data_test.csv:latest"
+            }
+        )
 
 
 if __name__ == "__main__":

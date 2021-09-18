@@ -130,3 +130,11 @@ dmypy.json
 
 # IntelliJ
 .idea/
+
+# MLflow
+mlruns/
+artifacts/
+outputs/
+
+# Weights & Biases
+wandb/
