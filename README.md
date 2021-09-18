@@ -1,2 +1,4 @@
-# genre_classification
-The Machine Learning pipeline
+# Genre Classification
+
+The Machine Learning pipeline with MLflow 🤖
+
